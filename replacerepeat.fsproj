@@ -11,6 +11,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Argu" Version="5.1.0" />
+    <PackageReference Include="Gavea.Common.FSharp" Version="1.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Update="System.ValueTuple" Version="4.5.0" />
   </ItemGroup>
 
