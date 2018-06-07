@@ -52,14 +52,16 @@ let parseReplacements (textLines: string list) =
         Error "The replacements file is empty"
     | firstLine :: replacementLines ->
         let oldStrings = splitLine firstLine
-        let getReplacements line =
-            line
-            |> splitLine
-            |> List.zip oldStrings
-            |> List.map (fun (o, n) -> { Old = o; New = n })
-        replacementLines
-        |> List.map getReplacements
-        |> Ok
+        try
+            let getReplacements line =
+                line
+                |> splitLine
+                |> List.zip oldStrings
+                |> List.map (fun (o, n) -> { Old = o; New = n })
+            replacementLines
+            |> List.map getReplacements
+            |> Ok
+        with e -> e.Message |> Error
 
 let replaceAndRepeat templatePath outputPath replacementsPath =
     result {
