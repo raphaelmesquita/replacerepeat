@@ -1,6 +1,7 @@
 ﻿open System
 open System.IO
 open Argu
+open Result.Operators
 
 type Arguments =
     | [<ExactlyOnce; AltCommandLine("-t")>]
@@ -8,7 +9,7 @@ type Arguments =
     | [<ExactlyOnce; AltCommandLine("-o")>]
       Output of path:string
     | [<ExactlyOnce; AltCommandLine("-r")>]
-      Replacements of replacements_file:string
+      Replacements of path:string
 with
     interface IArgParserTemplate with
         member s.Usage =
@@ -32,13 +33,57 @@ let generateReplacements template replacementsList =
 
 let getTemplate filePath =
     try File.ReadAllText(filePath) |> Ok
-    with e -> e |> Error
+    with e -> e.Message |> Error
 
 let createOutputFile filePath contentList = 
     try File.WriteAllLines(filePath, contentList |> Array.ofList) |> Ok
-    with e -> e |> Error
+    with e -> e.Message |> Error
+
+let getReplacements filePath =
+    try File.ReadAllLines(filePath) |> List.ofArray |> Ok
+    with e -> e.Message |> Error    
+
+let splitLine (line: string) =
+    line.Split("||") |> List.ofArray
+
+let parseReplacements (textLines: string list) =
+    match textLines with
+    | [] -> 
+        Error "The replacements file is empty"
+    | firstLine :: replacementLines ->
+        let oldStrings = splitLine firstLine
+        let getReplacements line =
+            line
+            |> splitLine
+            |> List.zip oldStrings
+            |> List.map (fun (o, n) -> { Old = o; New = n })
+        replacementLines
+        |> List.map getReplacements
+        |> Ok
+
+let replaceAndRepeat templatePath outputPath replacementsPath =
+    result {
+        let! template = getTemplate templatePath
+        let! replacementLines = getReplacements replacementsPath
+        let! replacementsList = parseReplacements replacementLines
+        let contentList = generateReplacements template replacementsList
+        do! createOutputFile outputPath contentList
+    }
 
 [<EntryPoint>]
 let main argv =
-    printfn "Hello World from F#!"
-    0 // return an integer exit code
+    let errorHandler = ProcessExiter(colorizer = function ErrorCode.HelpText -> None | _ -> Some ConsoleColor.Red)
+    let parser = ArgumentParser.Create<Arguments>(programName = "replacerepeat", errorHandler = errorHandler)
+
+    let results = parser.ParseCommandLine argv
+    let templatePath = results.GetResult(Template)
+    let outputPath = results.GetResult(Output)
+    let replacementsPath = results.GetResult(Replacements)
+
+    match replaceAndRepeat templatePath outputPath replacementsPath with
+    | Ok _ -> 
+        printf "Arquivo %s gravado com sucesso." outputPath
+        0
+    | Error msg ->
+        printf "%s" msg
+        -1 // return an integer exit code
